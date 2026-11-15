@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>USB Cable Keep-or-Toss</title>
+<title>Cable Keep or Toss</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,600;1,700&family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -63,7 +63,7 @@ h1 {
 .sub { color: var(--muted); margin: 0; max-width: 62ch; }
 
 /* Controls */
-.controls { display: grid; gap: 14px; margin-bottom: 18px; }
+.controls { display: grid; gap: 14px; }
 .group { border: 0; padding: 0; margin: 0; }
 .group legend {
   font-family: var(--f-mono);
@@ -95,7 +95,7 @@ h1 {
   outline: 2px solid var(--silk);
   outline-offset: 2px;
 }
-.hint { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.hint { font-size: 13px; color: var(--muted); }
 .hint strong { color: var(--silk); font-weight: 600; }
 
 /* Board: only the parts you use. Ports and LEDs sit at coordinates measured from the real
@@ -252,6 +252,28 @@ h1 {
 .rules th { font-family: var(--f-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
 .rules td:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
 
+
+[hidden] { display: none !important; }
+.modes {
+  display: flex; gap: 4px; width: max-content; margin-bottom: 16px;
+  background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 4px;
+}
+.modes button {
+  border: 0; background: transparent; cursor: pointer;
+  padding: 8px 18px; border-radius: 9px; font-weight: 600; font-size: 14px; color: var(--muted);
+}
+.modes button:hover { color: var(--silk); }
+.modes button[aria-pressed="true"] { background: var(--silk); color: #141518; }
+.modes button:focus-visible { outline: 2px solid var(--silk); outline-offset: 2px; }
+.controls { margin-bottom: 12px; }
+.hint { margin: 0 0 16px; }
+.board.hdmi { --u: calc(100cqw / 1333); aspect-ratio: 1333 / 1080; border-radius: calc(40 * var(--u)); }
+.board.hdmi .pin .name { font-size: calc(21 * var(--u)); }
+.board.hdmi .pin .num { font-size: calc(16 * var(--u)); }
+.board.hdmi .ttl { font-size: calc(16 * var(--u)); }
+.board.hdmi .port .pl { font-size: calc(15 * var(--u)); gap: calc(5 * var(--u)); }
+.board.hdmi .port .pl b { font-size: calc(21 * var(--u)); }
+
 /* Phone bar */
 .mbar { display: none; }
 
@@ -285,12 +307,17 @@ h1 {
 <body>
 <div class="app">
   <header>
-    <h1>USB Cable Keep-or-Toss</h1>
-    <p class="sub">For the Treedix USB cable tester board. Pick the two plugs, tap every LED that lights, and get a verdict: is this the best result that cable type can show?</p>
+    <h1>Cable Keep or Toss</h1>
+    <p class="sub">For the Treedix USB and HDMI cable tester boards. Pick the plugs, tap every LED that lights, and get a verdict: is this the best result that cable can show?</p>
   </header>
 
   <main>
-    <div class="controls">
+    <nav class="modes" aria-label="Tester board">
+      <button type="button" data-mode="usb" aria-pressed="true">USB tester</button>
+      <button type="button" data-mode="hdmi" aria-pressed="false">HDMI tester</button>
+    </nav>
+
+    <div class="controls" data-for="usb">
       <fieldset class="group">
         <legend>Near end · left-edge ports</legend>
         <div class="chips" id="nearChips"></div>
@@ -299,11 +326,24 @@ h1 {
         <legend>Far end · right and bottom ports</legend>
         <div class="chips" id="farChips"></div>
       </fieldset>
-      <p class="hint" id="plugHint"></p>
     </div>
+    <div class="controls" data-for="hdmi" hidden>
+      <fieldset class="group">
+        <legend>Port A · left edge</legend>
+        <div class="chips" id="portAChips"></div>
+      </fieldset>
+      <fieldset class="group">
+        <legend>Port B · right edge</legend>
+        <div class="chips" id="portBChips"></div>
+      </fieldset>
+    </div>
+    <p class="hint" id="plugHint"></p>
 
     <div class="board-wrap">
-      <div class="stage"><div class="board" id="board"></div></div>
+      <div class="stage">
+        <div class="board usb" id="usbBoard" data-for="usb"></div>
+        <div class="board hdmi" id="hdmiBoard" data-for="hdmi" hidden></div>
+      </div>
     </div>
     <div class="board-legend" aria-hidden="true">
       <span><i class="lg-lit"></i>Lit (you tapped it)</span>
@@ -312,8 +352,8 @@ h1 {
       <span><i class="lg-na"></i>Can't light for this port</span>
     </div>
 
-    <section class="how" aria-labelledby="howTitle">
-      <h2 id="howTitle">How it decides</h2>
+    <section class="how" aria-labelledby="howUsb" data-for="usb">
+      <h2 id="howUsb">How it decides: USB</h2>
       <p>On this board every pin of the left-edge ports connects to the battery, and every pin of the far-end port drives its own LED. A lit LED means that pin reaches the other end of the cable. A cable gets <strong>Keep</strong> when every pin its two plugs can carry lights, nothing else lights, and the shield is connected.</p>
       <table class="rules">
         <thead><tr><th>Cable</th><th>Best possible</th><th>LEDs</th></tr></thead>
@@ -332,12 +372,34 @@ h1 {
         <li>Treedix doesn't document which LEDs the Micro-B 3.0 and USB-B 3.0 SuperSpeed pins use. The checker expects TX2± and RX1±. If your board uses others, any four lit SuperSpeed LEDs still count.</li>
         <li>LEDs can't show wire thickness (charging speed), swapped wires, or signal quality. Chips in Lightning plugs and e-marked USB-C cables can change the pattern.</li>
       </ul>
-      <p>Sources: <a href="https://manuals.plus/treedix/usb-cable-data-line-test-board-manual">Treedix test board manual</a> · <a href="https://github.com/patrickgardella/usbcabletester">Community LED guide for this board</a></p>
+      <p>Sources: <a href="https://manuals.plus/treedix/usb-cable-data-line-test-board-manual">Treedix USB test board manual</a> · <a href="https://github.com/patrickgardella/usbcabletester">Community LED guide for this board</a></p>
+    </section>
+
+    <section class="how" aria-labelledby="howHdmi" data-for="hdmi" hidden>
+      <h2 id="howHdmi">How it decides: HDMI</h2>
+      <p>Every HDMI connector size carries the same 19 signals plus the metal shell, and the board gives each one an LED. So the best possible result is the same for every cable: <strong>all 20 LEDs lit</strong>. Plug size only changes which port you use.</p>
+      <table class="rules">
+        <thead><tr><th>LEDs</th><th>What they carry</th><th>If one is dark</th></tr></thead>
+        <tbody>
+          <tr><td>D0, D1, D2, CK ±</td><td>The four video pairs (all four carry data on HDMI 2.1)</td><td>No picture, or a broken one</td></tr>
+          <tr><td>D0_S, D1_S, D2_S, CK_S</td><td>Each pair's shield</td><td>Sparkles and dropouts</td></tr>
+          <tr><td>SCL, SDA, CECG</td><td>DDC: the display's EDID and the HDCP handshake, plus their ground</td><td>Usually no picture</td></tr>
+          <tr><td>+5V, HPD</td><td>Power for the display's EDID chip, and hot-plug detect</td><td>The source can't see the display</td></tr>
+          <tr><td>CEC</td><td>Device control (one remote for TV and soundbar)</td><td>No CEC</td></tr>
+          <tr><td>RES (pin 14)</td><td>The utility line used by ARC, eARC and HDMI Ethernet</td><td>No ARC or eARC</td></tr>
+          <tr><td>Shield</td><td>The connector shells</td><td>More interference</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>LEDs can't tell an HDMI 2.1 cable from an older one; bandwidth depends on how it's built. For 4K120 or 8K, look for the Ultra High Speed certification label.</li>
+        <li>Fiber (active optical) HDMI cables have electronics inside and won't light normally on this tester. Test those with a real source and display.</li>
+      </ul>
+      <p>Source: <a href="https://treedix.com/products/cable-tester-board-for-hdmi-cable-tester-checker-20-led-light-status-indictor-to-check-disorder-short-open-and-cross-connection-for-hdmi-a-type-hdmi-c-type-hdmi-d-type">Treedix HDMI cable tester board</a></p>
     </section>
   </main>
 
   <aside class="verdict" id="verdict" data-status="keep" aria-live="polite">
-    <p class="example" id="example">Example: a fully wired USB-A → Micro-B cable. Press <strong>Next cable</strong> to start.</p>
+    <p class="example" id="example"></p>
     <p class="word" id="word">Keep</p>
     <p class="headline" id="headline"></p>
     <p class="identity" id="identity"></p>
@@ -621,15 +683,113 @@ function identity(r, f, n) {
   return "Reads as: damaged cable";
 }
 // ===== LOGIC END =====
-const PIN_NUM = ["", "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫"];
+
+// ===== HDMI LOGIC START =====
+// LED n on the board: [signal label as printed, Standard pin, Mini pin, Micro pin]
+const HDMI_PINS = {
+  1: ["D2+", 1, 2, 3], 2: ["D2_S", 2, 1, 4], 3: ["D2−", 3, 3, 5],
+  4: ["D1+", 4, 5, 6], 5: ["D1_S", 5, 4, 7], 6: ["D1−", 6, 6, 8],
+  7: ["D0+", 7, 8, 9], 8: ["D0_S", 8, 7, 10], 9: ["D0−", 9, 9, 11],
+  10: ["CK+", 10, 11, 12], 11: ["CK_S", 11, 10, 13], 12: ["CK−", 12, 12, 14],
+  13: ["CEC", 13, 14, 15], 14: ["RES", 14, 17, 2], 15: ["SCL", 15, 15, 17],
+  16: ["SDA", 16, 16, 18], 17: ["CECG", 17, 13, 16], 18: ["+5V", 18, 18, 19],
+  19: ["HPD", 19, 19, 1], 20: ["Shield", 20, 20, 20]
+};
+const HDMI_PLUGS = {
+  std: { label: "Standard HDMI", short: "Standard", sub: "Type A" },
+  mini: { label: "Mini HDMI", short: "Mini", sub: "Type C" },
+  micro: { label: "Micro HDMI", short: "Micro", sub: "Type D" }
+};
+const HDMI_ALL = Object.keys(HDMI_PINS).map((n) => "H" + n);
+
+function evaluateHdmi(st) {
+  const app = new Set(HDMI_ALL);
+  const lit = new Set([...st.lit].filter((x) => app.has(x)));
+  const L = (n) => lit.has("H" + n);
+  const missing = (arr) => arr.filter((n) => !L(n));
+  const names = (arr) => arr.map((n) => HDMI_PINS[n][0]).join(", ");
+  const r = {
+    applicable: app, lit, target: new Set(HDMI_ALL), allowed: new Set(), unexpected: new Set(),
+    checks: [], notes: [], problems: [], flags: {}
+  };
+  const prob = (sev, head) => r.problems.push({ sev, head });
+  const check = (key, label, state, detail) => { r.checks.push({ label, state, detail }); r.flags[key] = state; };
+
+  const tmds = [1, 3, 4, 6, 7, 9, 10, 12];
+  const lanes = { D0: [7, 9], D1: [4, 6], D2: [1, 3], Clock: [10, 12] };
+  const broken = Object.keys(lanes).filter((k) => missing(lanes[k]).length);
+  const tmdsLit = tmds.length - missing(tmds).length;
+  if (!broken.length) check("video", "Video pairs", "ok", "D0, D1, D2 and clock all connected");
+  else if (tmdsLit) { check("video", "Video pairs", "partial", "Broken: " + broken.join(", ")); prob(3, "Broken video pair (" + broken.join(", ") + ")"); }
+  else { check("video", "Video pairs", "bad", "None connected"); prob(3, "No video wires"); }
+
+  const shields = missing([2, 5, 8, 11]);
+  if (!shields.length) check("shields", "Pair shields", "ok", "All 4 connected");
+  else { check("shields", "Pair shields", shields.length === 4 ? "bad" : "partial", names(shields) + " missing"); prob(6, "Broken pair shield (" + names(shields) + "): expect sparkles or dropouts"); }
+
+  const ddc = missing([15, 16]);
+  const cecg = !L(17);
+  if (!ddc.length && !cecg) check("ddc", "DDC (EDID, HDCP)", "ok", "SCL, SDA and their ground connected");
+  else {
+    const gone = missing([15, 16, 17]);
+    check("ddc", "DDC (EDID, HDCP)", ddc.length === 2 ? "bad" : "partial", names(gone) + " missing");
+    if (ddc.length) prob(2, "No DDC line (" + names(ddc) + "): no EDID or HDCP handshake, so usually no picture");
+    else prob(5, "No DDC/CEC ground (CECG)");
+  }
+
+  const pd = missing([18, 19]);
+  if (!pd.length) check("power", "+5V and hot plug", "ok", "Both connected");
+  else {
+    check("power", "+5V and hot plug", pd.length === 2 ? "bad" : "partial", names(pd) + " missing");
+    if (!L(18)) prob(1, "No +5V line: the display may not be detected, and active cables won't get power");
+    if (!L(19)) prob(1.5, "No hot-plug line: the source won't see the display");
+  }
+
+  if (L(13)) check("cec", "CEC", "ok", "Connected");
+  else { check("cec", "CEC", "bad", "Missing: one-remote control won't work"); prob(7, "No CEC line: one-remote control of TV and devices won't work"); }
+
+  if (L(14)) check("util", "ARC / eARC line (RES)", "ok", "Pin 14 connected");
+  else { check("util", "ARC / eARC line (RES)", "bad", "Pin 14 missing"); prob(8, "No pin 14 (RES): ARC, eARC and HDMI Ethernet won't work"); }
+
+  if (L(20)) check("shell", "Shield", "ok", "Connector shells connected");
+  else { check("shell", "Shield", "bad", "Connector shells not connected"); prob(9, "Shell not connected"); }
+
+  if (lit.size > 0 && tmdsLit === 0 && L(18)) {
+    r.notes.push("If this is a fiber (active optical) HDMI cable, this tester can't check it: the video runs over glass. Test it with a real source and display.");
+  }
+  r.problems.sort((a, b) => a.sev - b.sev);
+
+  if (st.nothing) {
+    r.status = "toss"; r.headline = "Nothing lights up"; r.identity = "Dead cable, or a plug isn't seated";
+    r.notes.unshift("Push both plugs in firmly and test once more before tossing.");
+  } else if (lit.size === 0) {
+    r.status = "empty"; r.headline = "Tap every LED that's lit on your board"; r.identity = "";
+  } else if (r.problems.length) {
+    r.status = "toss"; r.headline = r.problems[0].head;
+  } else {
+    r.status = "keep"; r.headline = "Best possible result: every HDMI pin and the shell are connected.";
+    r.notes.push("LEDs can't tell HDMI versions apart. For 4K120 or 8K, check for the Ultra High Speed certification label.");
+  }
+  if (r.identity === undefined) {
+    const onlyUtil = r.problems.length === 1 && !L(14);
+    r.identity = r.status === "keep" ? "Reads as: fully wired HDMI cable"
+      : onlyUtil ? "Reads as: working HDMI cable without the ARC/Ethernet line"
+      : tmdsLit === 0 ? "Reads as: no video wiring"
+      : "Reads as: damaged HDMI cable";
+  }
+  r.missing = new Set([...r.target].filter((x) => !lit.has(x)));
+  return r;
+}
+// ===== HDMI LOGIC END =====
+
+// ===== UI =====
 const state = {
-  near: "a3",
-  far: "mb2",
-  lit: new Set(["B1", "B6", "B7", "B9", "SH"]),
-  nothing: false,
-  example: true,
+  mode: "usb",
+  usb: { near: "a3", far: "mb2", lit: new Set(["B1", "B6", "B7", "B9", "SH"]), nothing: false, example: true },
+  hdmi: { a: "std", b: "std", lit: new Set(HDMI_ALL), nothing: false, example: true },
   tally: { keep: 0, toss: 0 }
 };
+const cur = () => state[state.mode];
 
 function loadTally() {
   try {
@@ -641,9 +801,9 @@ function saveTally() {
   try { localStorage.setItem("cable-keep-toss-tally", JSON.stringify(state.tally)); } catch (e) { /* ignore */ }
 }
 
-// ---- Board geometry, in units measured from the real board (origin at its top-left corner) ----
-const BX = 540, BY = 489, BW = 897, BH = 741;
-const ROW0 = 716.5, PITCH = 35.1, RH = 35;
+// ---- Geometry: units measured from photos of each board, origin at the board's top-left corner ----
+const G_USB = { x: 540, y: 489, w: 897, h: 741 };
+const G_HDMI = { x: 85, y: 360, w: 1333, h: 1080 };
 
 function mk(tag, cls, html) {
   const e = document.createElement(tag);
@@ -651,17 +811,15 @@ function mk(tag, cls, html) {
   if (html != null) e.innerHTML = html;
   return e;
 }
-function place(el, x, y, w, h) {
-  el.style.left = ((x - BX) / BW * 100) + "%";
-  el.style.top = ((y - BY) / BH * 100) + "%";
-  el.style.width = (w / BW * 100) + "%";
-  el.style.height = (h / BH * 100) + "%";
+function place(el, G, x, y, w, h) {
+  el.style.left = ((x - G.x) / G.w * 100) + "%";
+  el.style.top = ((y - G.y) / G.h * 100) + "%";
+  el.style.width = (w / G.w * 100) + "%";
+  el.style.height = (h / G.h * 100) + "%";
   return el;
 }
-function deco(board, cls, x, y, w, h, html, fontU, extra) {
-  const e = place(mk("div", "dz " + cls, html), x, y, w, h);
-  if (fontU) e.style.fontSize = "calc(" + fontU + " * var(--u))";
-  if (extra) Object.assign(e.style, extra);
+function deco(board, G, cls, x, y, w, h, html) {
+  const e = place(mk("div", "dz " + cls, html), G, x, y, w, h);
   e.setAttribute("aria-hidden", "true");
   board.appendChild(e);
   return e;
@@ -676,42 +834,53 @@ function sub(parent, cls, cx, cy, w, h, bw, bh, html) {
   parent.appendChild(e);
   return e;
 }
+function toggleLed(id) {
+  const s = cur();
+  s.example = false;
+  s.nothing = false;
+  if (s.lit.has(id)) s.lit.delete(id); else s.lit.add(id);
+  render();
+}
+function portButton(board, G, p, onClick) {
+  const btn = place(mk("button", "port"), G, p.x, p.y, p.w, p.h);
+  btn.type = "button";
+  btn.dataset.port = p.port;
+  btn.setAttribute("aria-label", p.label);
+  btn.innerHTML = '<span class="pl">' + (p.letter ? "<b>" + p.letter + "</b>" : "") + "<span>" + p.name + "</span></span>";
+  btn.addEventListener("click", onClick);
+  board.appendChild(btn);
+  return btn;
+}
 
-function pinButton(id, row) {
+// ---- USB board ----
+const U_ROW0 = 716.5, U_PITCH = 35.1, U_RH = 35;
+function usbPin(id, row) {
   const b = mk("button", "pin row" + row);
   b.type = "button";
   b.dataset.id = id;
   const n = /\d/.test(id) ? parseInt(id.slice(1), 10) : 0;
-  const cy = RH / 2;
+  const cy = U_RH / 2;
   if (row === "B") {
-    // number · name · leader · LED; the LED faces the centre of the board, as on the device
     const bw = 212;
-    sub(b, "num", 14, cy, 22, 20, bw, RH, String(n));
-    sub(b, "name", 64, cy, 66, 22, bw, RH, PIN[id]);
-    sub(b, "lead", 134, cy, 64, 1.2, bw, RH);
-    sub(b, "led", 185, cy, 30, 14, bw, RH);
+    sub(b, "num", 14, cy, 22, 20, bw, U_RH, String(n));
+    sub(b, "name", 64, cy, 66, 22, bw, U_RH, PIN[id]);
+    sub(b, "lead", 134, cy, 64, 1.2, bw, U_RH);
+    sub(b, "led", 185, cy, 30, 14, bw, U_RH);
   } else if (row === "A") {
     const bw = 214;
-    sub(b, "led", 21, cy, 30, 14, bw, RH);
-    sub(b, "lead", 72, cy, 64, 1.2, bw, RH);
-    sub(b, "name", 147, cy, 66, 22, bw, RH, PIN[id]);
-    sub(b, "num", 196, cy, 22, 20, bw, RH, String(n));
+    sub(b, "led", 21, cy, 30, 14, bw, U_RH);
+    sub(b, "lead", 72, cy, 64, 1.2, bw, U_RH);
+    sub(b, "name", 147, cy, 66, 22, bw, U_RH, PIN[id]);
+    sub(b, "num", 196, cy, 22, 20, bw, U_RH, String(n));
   } else {
-    // ID and Shield, under Pinrow B
     const bw = 120, bh = 36;
     sub(b, "led", 27, bh / 2, 30, 14, bw, bh);
     sub(b, "name", 82, bh / 2, 64, 20, bw, bh, PIN[id]);
   }
-  b.addEventListener("click", () => {
-    state.example = false;
-    state.nothing = false;
-    if (state.lit.has(id)) state.lit.delete(id); else state.lit.add(id);
-    render();
-  });
+  b.addEventListener("click", () => toggleLed(id));
   return b;
 }
-
-const PORTS = [
+const USB_PORTS = [
   { port: "ta3", x: 530, y: 615, w: 150, h: 145, name: "USB-A 3.0", label: "Type-A 3.0 port, top of the left edge: near end is a USB-A 3.x plug" },
   { port: "ta2", x: 530, y: 797, w: 138, h: 140, name: "USB-A 2.0", label: "Type-A 2.0 port, middle of the left edge: near end is a USB-A 2.0 plug" },
   { port: "tc",  x: 530, y: 992, w: 138, h: 95,  name: "USB-C", label: "Type-C 3.0 port, bottom of the left edge: near end is USB-C" },
@@ -722,132 +891,142 @@ const PORTS = [
   { port: "e",   x: 1060, y: 1130, w: 132, h: 98, letter: "e", name: "Lightning", label: "Port e, Lightning, bottom edge" },
   { port: "d",   x: 1222, y: 1127, w: 108, h: 105, letter: "d", name: "Mini-B", label: "Port d, Mini-B 2.0, bottom edge" }
 ];
-
-function buildBoard() {
-  const board = document.getElementById("board");
+function buildUsbBoard() {
+  const board = document.getElementById("usbBoard"), G = G_USB;
   const actions = {
     tc: () => setNear("c"), ta3: () => setNear("a3"), ta2: () => setNear("a2"),
     f: () => setFar("mb2"), e: () => setFar("lightning"), d: () => setFar("mini"),
-    c: () => setFar("mb3"), b: () => setFar("c"), a: () => setFar(state.far === "b3" ? "b2" : "b3")
+    c: () => setFar("mb3"), b: () => setFar("c"), a: () => setFar(state.usb.far === "b3" ? "b2" : "b3")
   };
-
   for (let i = 1; i <= 12; i++) {
-    const y = ROW0 + (i - 1) * PITCH - RH / 2;
-    board.appendChild(place(pinButton("B" + i, "B"), 733, y, 212, RH));
-    board.appendChild(place(pinButton("A" + (13 - i), "A"), 1026, y, 214, RH));
+    const y = U_ROW0 + (i - 1) * U_PITCH - U_RH / 2;
+    board.appendChild(place(usbPin("B" + i, "B"), G, 733, y, 212, U_RH));
+    board.appendChild(place(usbPin("A" + (13 - i), "A"), G, 1026, y, 214, U_RH));
   }
-  deco(board, "ttl", 948, 790, 26, 250, "PINROW B");
-  deco(board, "ttl flip", 1001, 790, 26, 250, "PINROW A");
-  board.appendChild(place(pinButton("ID", "X"), 813, 1128, 120, 36));
-  board.appendChild(place(pinButton("SH", "X"), 813, 1170, 120, 36));
+  deco(board, G, "ttl", 948, 790, 26, 250, "PINROW B");
+  deco(board, G, "ttl flip", 1001, 790, 26, 250, "PINROW A");
+  board.appendChild(place(usbPin("ID", "X"), G, 813, 1128, 120, 36));
+  board.appendChild(place(usbPin("SH", "X"), G, 813, 1170, 120, 36));
+  USB_PORTS.forEach((p) => portButton(board, G, p, actions[p.port]));
+}
 
-  PORTS.forEach((p) => {
-    const btn = place(mk("button", "port"), p.x, p.y, p.w, p.h);
-    btn.type = "button";
-    btn.dataset.port = p.port;
-    btn.setAttribute("aria-label", p.label);
-    btn.innerHTML = '<span class="pl">' + (p.letter ? "<b>" + p.letter + "</b>" : "") + "<span>" + p.name + "</span></span>";
-    btn.addEventListener("click", actions[p.port]);
-    board.appendChild(btn);
+// ---- HDMI board ----
+const H_ROW0 = 721.5, H_PITCH = 56.6, H_RH = 54, H_MID = 754.5;
+function hdmiPin(n, side) {
+  const id = "H" + n;
+  const b = mk("button", "pin " + (side === "L" ? "rowB" : "rowA"));
+  b.type = "button";
+  b.dataset.id = id;
+  const bw = 312, cy = H_RH / 2;
+  if (side === "L") {
+    // pin number · name · leader · LED, LED facing the centre
+    sub(b, "num", 36, cy, 34, 30, bw, H_RH, String(n));
+    sub(b, "name", 106, cy, 92, 32, bw, H_RH, HDMI_PINS[n][0]);
+    sub(b, "lead", 200, cy, 92, 1.6, bw, H_RH);
+    sub(b, "led", 278, cy, 44, 19, bw, H_RH);
+  } else {
+    sub(b, "led", 34, cy, 44, 19, bw, H_RH);
+    sub(b, "lead", 112, cy, 92, 1.6, bw, H_RH);
+    sub(b, "name", 206, cy, 92, 32, bw, H_RH, HDMI_PINS[n][0]);
+    sub(b, "num", 276, cy, 34, 30, bw, H_RH, String(n));
+  }
+  b.addEventListener("click", () => toggleLed(id));
+  return b;
+}
+const HDMI_PORTS = [
+  { port: "A-std",   side: "a", plug: "std",   x: 72,   y: 612,  w: 210, h: 250 },
+  { port: "A-mini",  side: "a", plug: "mini",  x: 78,   y: 932,  w: 144, h: 188 },
+  { port: "A-micro", side: "a", plug: "micro", x: 70,   y: 1190, w: 135, h: 110 },
+  { port: "B-std",   side: "b", plug: "std",   x: 1220, y: 612,  w: 202, h: 250 },
+  { port: "B-mini",  side: "b", plug: "mini",  x: 1287, y: 928,  w: 135, h: 190 },
+  { port: "B-micro", side: "b", plug: "micro", x: 1297, y: 1185, w: 135, h: 113 }
+];
+function buildHdmiBoard() {
+  const board = document.getElementById("hdmiBoard"), G = G_HDMI;
+  for (let i = 1; i <= 10; i++) {
+    const y = H_ROW0 + (i - 1) * H_PITCH - H_RH / 2;
+    board.appendChild(place(hdmiPin(i, "L"), G, H_MID - 349.5, y, 312, H_RH));
+    board.appendChild(place(hdmiPin(i + 10, "R"), G, H_MID + 37.5, y, 312, H_RH));
+  }
+  deco(board, G, "ttl", 243, 955, 44, 140, "PORT A");
+  deco(board, G, "ttl", 1218, 952, 44, 140, "PORT B");
+  HDMI_PORTS.forEach((p) => {
+    const pl = HDMI_PLUGS[p.plug];
+    portButton(board, G, {
+      port: p.port, x: p.x, y: p.y, w: p.w, h: p.h, letter: pl.short, name: "HDMI",
+      label: "Port " + p.side.toUpperCase() + " " + pl.label + (p.side === "a" ? ", left edge" : ", right edge")
+    }, () => setHdmiPlug(p.side, p.plug));
   });
 }
 
+// ---- Controls ----
+function chip(container, data, key, label, subText, onClick) {
+  const b = mk("button", "chip", "<b>" + label + "</b><span>" + subText + "</span>");
+  b.type = "button";
+  b.dataset[data] = key;
+  b.addEventListener("click", onClick);
+  container.appendChild(b);
+}
 function buildChips() {
   const nc = document.getElementById("nearChips");
-  Object.entries(NEAR).forEach(([key, v]) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "chip"; b.dataset.near = key;
-    b.innerHTML = "<b>" + v.label + "</b><span>" + v.sub + "</span>";
-    b.addEventListener("click", () => setNear(key));
-    nc.appendChild(b);
-  });
+  Object.entries(NEAR).forEach(([k, v]) => chip(nc, "near", k, v.label, v.sub, () => setNear(k)));
   const fc = document.getElementById("farChips");
-  Object.entries(FAR).forEach(([key, v]) => {
-    const b = document.createElement("button");
-    b.type = "button"; b.className = "chip"; b.dataset.far = key;
-    b.innerHTML = "<b>" + v.label + "</b><span>" + v.sub + "</span>";
-    b.addEventListener("click", () => setFar(key));
-    fc.appendChild(b);
+  Object.entries(FAR).forEach(([k, v]) => chip(fc, "far", k, v.label, v.sub, () => setFar(k)));
+  ["a", "b"].forEach((side) => {
+    const c = document.getElementById(side === "a" ? "portAChips" : "portBChips");
+    Object.entries(HDMI_PLUGS).forEach(([k, v]) => chip(c, "plug" + side, k, v.label, v.sub, () => setHdmiPlug(side, k)));
   });
 }
-
-function setNear(key) { state.near = key; state.example = false; render(); }
+function setNear(key) { state.usb.near = key; state.usb.example = false; render(); }
 function setFar(key) {
-  state.far = key; state.example = false;
+  state.usb.far = key; state.usb.example = false;
   const app = applicableSet(key);
-  state.lit = new Set([...state.lit].filter((x) => app.has(x)));
+  state.usb.lit = new Set([...state.usb.lit].filter((x) => app.has(x)));
+  render();
+}
+function setHdmiPlug(side, plug) { state.hdmi[side] = plug; state.hdmi.example = false; render(); }
+function setMode(mode, fromHash) {
+  if (mode !== "usb" && mode !== "hdmi") mode = "usb";
+  state.mode = mode;
+  if (!fromHash && location.hash !== "#" + mode) {
+    try { history.replaceState(null, "", "#" + mode); } catch (e) { location.hash = mode; }
+  }
   render();
 }
 
 function nextCable() {
-  const r = evaluate(state);
-  if (!state.example && (r.status === "keep" || r.status === "toss")) {
+  const s = cur();
+  const r = state.mode === "usb" ? evaluate(s) : evaluateHdmi(s);
+  if (!s.example && (r.status === "keep" || r.status === "toss")) {
     state.tally[r.status] += 1;
     saveTally();
   }
-  state.lit = new Set();
-  state.nothing = false;
-  state.example = false;
+  s.lit = new Set();
+  s.nothing = false;
+  s.example = false;
   render();
 }
 
-function renderMini(r) {
+// ---- Rendering ----
+function renderMini(r, rows, text) {
   const mini = document.getElementById("mini");
   const dot = (id) => {
+    if (!id) return '<span class="sp"></span>';
     const cls = !r.applicable.has(id) ? "na" : r.target.has(id) ? "on" : "";
     return '<span class="' + cls + '"></span>';
   };
-  const cells = [];
-  for (let i = 1; i <= 12; i++) cells.push(dot("B" + i), dot("A" + (13 - i)));
-  cells.push('<span class="sp gap"></span>', '<span class="sp gap"></span>');
-  cells.push(dot("ID"), '<span class="sp"></span>', dot("SH"), '<span class="sp"></span>');
-  mini.innerHTML = cells.join("");
-  const order = (id) => id === "SH" ? 99 : (id[0] === "B" ? 0 : 20) + parseInt(id.slice(1), 10);
-  const names = [...r.target].sort((a, b) => order(a) - order(b))
-    .map((id) => id === "SH" ? "Shield" : id).join(", ");
-  const darkId = r.applicable.has("ID") ? " ID stays dark." : "";
-  document.getElementById("targetText").textContent =
-    r.target.size + " LEDs: " + names + "." + darkId + " Left column is Pinrow B, right is Pinrow A, as on the board.";
+  mini.innerHTML = rows.map((row) => row === "gap"
+    ? '<span class="sp gap"></span><span class="sp gap"></span>'
+    : dot(row[0]) + dot(row[1])).join("");
+  document.getElementById("targetText").textContent = text;
 }
 
-function render() {
-  const r = evaluate(state);
-  const f = FAR[state.far], n = NEAR[state.near];
-
-  document.querySelectorAll("[data-near]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.near === state.near)));
-  document.querySelectorAll("[data-far]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.far === state.far)));
-  document.querySelectorAll(".port").forEach((p) => {
-    const port = p.dataset.port;
-    p.classList.toggle("active", port === n.port || port === f.port);
-  });
-  const nearPortName = {
-    tc: "the Type-C 3.0 port (bottom of the left edge)",
-    ta3: "the blue Type-A 3.0 port (top of the left edge)",
-    ta2: "the Type-A 2.0 port (middle of the left edge)"
-  }[n.port];
-  const farPortName = {
-    a: "port a (Type-B 3.0, top right)", b: "port b (Type-C 3.0, right edge)", c: "port c (Micro-B 3.0, right edge)",
-    f: "port f (Micro-B 2.0, bottom edge)", e: "port e (Lightning, bottom edge)", d: "port d (Mini-B 2.0, bottom edge)"
-  }[f.port];
-  document.getElementById("plugHint").innerHTML =
-    "Plug the near end into <strong>" + nearPortName + "</strong> and the far end into <strong>" + farPortName + "</strong>, then tap every LED that lights.";
-
-  const showMarks = !state.example && (r.lit.size > 0 || state.nothing);
-  document.querySelectorAll(".pin").forEach((b) => {
-    const id = b.dataset.id;
-    const applicable = r.applicable.has(id);
-    b.disabled = !applicable;
-    const on = state.lit.has(id) && applicable;
-    b.setAttribute("aria-pressed", String(on));
-    b.classList.toggle("missing", showMarks && applicable && r.missing.has(id));
-    b.classList.toggle("unexpected", showMarks && r.unexpected.has(id));
-    const label = (id === "SH" || id === "ID" ? PIN[id] : id + " " + PIN[id]) + " LED";
-    b.setAttribute("aria-label", applicable ? label : label + ", can't light for this port");
-  });
-
+function renderVerdict(r, exampleText, miniRows, miniText) {
   const v = document.getElementById("verdict");
   v.dataset.status = r.status;
-  document.getElementById("example").hidden = !state.example;
+  const ex = document.getElementById("example");
+  ex.hidden = !cur().example;
+  ex.innerHTML = exampleText;
   const word = r.status === "keep" ? "Keep" : r.status === "toss" ? "Toss" : "—";
   document.getElementById("word").textContent = word;
   document.getElementById("headline").textContent = r.headline;
@@ -862,12 +1041,12 @@ function render() {
     '</span><span class="det">' + c.detail + "</span></li>").join("");
   checks.hidden = r.status === "empty";
 
-  renderMini(r);
+  renderMini(r, miniRows, miniText);
   const notes = document.getElementById("notes");
   notes.innerHTML = r.notes.map((t) => "<li>" + t + "</li>").join("");
   notes.hidden = r.notes.length === 0;
 
-  document.getElementById("nothingBtn").setAttribute("aria-pressed", String(state.nothing));
+  document.getElementById("nothingBtn").setAttribute("aria-pressed", String(cur().nothing));
   document.getElementById("tally").innerHTML =
     "<span>This session: <b>" + state.tally.keep + "</b> kept · <b>" + state.tally.toss + "</b> tossed</span>" +
     (state.tally.keep + state.tally.toss ? '<button class="linkbtn" id="resetTally" type="button">Reset count</button>' : "");
@@ -880,23 +1059,95 @@ function render() {
   document.getElementById("mhead").textContent = r.headline;
 }
 
+function markPins(board, r, s) {
+  const showMarks = !s.example && (r.lit.size > 0 || s.nothing);
+  board.querySelectorAll(".pin").forEach((b) => {
+    const id = b.dataset.id;
+    const applicable = r.applicable.has(id);
+    b.disabled = !applicable;
+    b.setAttribute("aria-pressed", String(s.lit.has(id) && applicable));
+    b.classList.toggle("missing", showMarks && applicable && r.missing.has(id));
+    b.classList.toggle("unexpected", showMarks && r.unexpected.has(id));
+    const name = id[0] === "H" ? HDMI_PINS[id.slice(1)][0] : (id === "SH" || id === "ID" ? PIN[id] : id + " " + PIN[id]);
+    const label = name + " LED";
+    b.setAttribute("aria-label", applicable ? label : label + ", can't light for this port");
+  });
+}
+
+function renderUsb() {
+  const s = state.usb, r = evaluate(s);
+  const f = FAR[s.far], n = NEAR[s.near];
+  document.querySelectorAll("[data-near]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.near === s.near)));
+  document.querySelectorAll("[data-far]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.far === s.far)));
+  const board = document.getElementById("usbBoard");
+  board.querySelectorAll(".port").forEach((p) => p.classList.toggle("active", p.dataset.port === n.port || p.dataset.port === f.port));
+  const nearPortName = {
+    tc: "the Type-C 3.0 port (bottom of the left edge)",
+    ta3: "the blue Type-A 3.0 port (top of the left edge)",
+    ta2: "the Type-A 2.0 port (middle of the left edge)"
+  }[n.port];
+  const farPortName = {
+    a: "port a (Type-B 3.0, top right)", b: "port b (Type-C 3.0, right edge)", c: "port c (Micro-B 3.0, right edge)",
+    f: "port f (Micro-B 2.0, bottom edge)", e: "port e (Lightning, bottom edge)", d: "port d (Mini-B 2.0, bottom edge)"
+  }[f.port];
+  document.getElementById("plugHint").innerHTML =
+    "Plug the near end into <strong>" + nearPortName + "</strong> and the far end into <strong>" + farPortName + "</strong>, then tap every LED that lights.";
+  markPins(board, r, s);
+
+  const rows = [];
+  for (let i = 1; i <= 12; i++) rows.push(["B" + i, "A" + (13 - i)]);
+  rows.push("gap", ["ID", null], ["SH", null]);
+  const order = (id) => id === "SH" ? 99 : (id[0] === "B" ? 0 : 20) + parseInt(id.slice(1), 10);
+  const names = [...r.target].sort((a, b) => order(a) - order(b)).map((id) => id === "SH" ? "Shield" : id).join(", ");
+  const darkId = r.applicable.has("ID") ? " ID stays dark." : "";
+  renderVerdict(r, "Example: a fully wired USB-A → Micro-B cable. Press <strong>Next cable</strong> to start.", rows,
+    r.target.size + " LEDs: " + names + "." + darkId + " Left column is Pinrow B, right is Pinrow A, as on the board.");
+}
+
+function renderHdmi() {
+  const s = state.hdmi, r = evaluateHdmi(s);
+  document.querySelectorAll("[data-pluga]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.pluga === s.a)));
+  document.querySelectorAll("[data-plugb]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.plugb === s.b)));
+  const board = document.getElementById("hdmiBoard");
+  board.querySelectorAll(".port").forEach((p) => p.classList.toggle("active", p.dataset.port === "A-" + s.a || p.dataset.port === "B-" + s.b));
+  document.getElementById("plugHint").innerHTML =
+    "Plug one end into <strong>Port A " + HDMI_PLUGS[s.a].label + "</strong> (left edge) and the other into <strong>Port B " +
+    HDMI_PLUGS[s.b].label + "</strong> (right edge), then tap every LED that lights.";
+  markPins(board, r, s);
+  const rows = [];
+  for (let i = 1; i <= 10; i++) rows.push(["H" + i, "H" + (i + 10)]);
+  renderVerdict(r, "Example: a fully wired HDMI cable. Press <strong>Next cable</strong> to start.", rows,
+    "All 20 LEDs, whatever the plug sizes. Left column is pins 1–10, right is 11–20, as on the board.");
+}
+
+function render() {
+  document.querySelectorAll("[data-mode]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+  document.querySelectorAll("[data-for]").forEach((el) => { el.hidden = el.dataset.for !== state.mode; });
+  if (state.mode === "usb") renderUsb(); else renderHdmi();
+}
+
 function start(snap) {
-  if (snap && snap.near && NEAR[snap.near] && FAR[snap.far]) {
-    state.near = snap.near; state.far = snap.far;
-    state.lit = new Set(snap.lit || []);
-    state.nothing = !!snap.nothing; state.example = !!snap.example;
+  if (snap && snap.usb && snap.hdmi) {
+    state.mode = snap.mode === "hdmi" ? "hdmi" : "usb";
+    state.usb = Object.assign(state.usb, snap.usb, { lit: new Set(snap.usb.lit || []) });
+    state.hdmi = Object.assign(state.hdmi, snap.hdmi, { lit: new Set(snap.hdmi.lit || []) });
     if (snap.tally) state.tally = snap.tally;
   } else {
     loadTally();
+    if (location.hash === "#hdmi") state.mode = "hdmi";
   }
-  buildBoard();
+  buildUsbBoard();
+  buildHdmiBoard();
   buildChips();
+  document.querySelectorAll("[data-mode]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+  window.addEventListener("hashchange", () => setMode(location.hash.slice(1), true));
   document.getElementById("nextBtn").addEventListener("click", nextCable);
   document.getElementById("mnext").addEventListener("click", nextCable);
   document.getElementById("nothingBtn").addEventListener("click", () => {
-    state.nothing = !state.nothing;
-    state.example = false;
-    if (state.nothing) state.lit = new Set();
+    const s = cur();
+    s.nothing = !s.nothing;
+    s.example = false;
+    if (s.nothing) s.lit = new Set();
     render();
   });
   render();
@@ -904,8 +1155,10 @@ function start(snap) {
 
 if (window.claude && window.claude.hot && window.claude.hot.snapshot) {
   window.claude.hot.snapshot(() => ({
-    near: state.near, far: state.far, lit: [...state.lit],
-    nothing: state.nothing, example: state.example, tally: state.tally
+    mode: state.mode,
+    usb: Object.assign({}, state.usb, { lit: [...state.usb.lit] }),
+    hdmi: Object.assign({}, state.hdmi, { lit: [...state.hdmi.lit] }),
+    tally: state.tally
   }));
 }
 if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start);
