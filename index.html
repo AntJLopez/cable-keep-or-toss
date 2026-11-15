@@ -1,0 +1,915 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>USB Cable Keep-or-Toss</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Saira+Condensed:wght@700;800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;1,600;1,700&family=Martian+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  /* Layout idea: the tester board, in its true landscape orientation, is the input:
+     matte black PCB, silkscreen type, LED amber as the only accent; verdict panel beside it
+     (below on phones). Single dark theme by choice. */
+  --bg: #131518;
+  --surface: #1b1e22;
+  --board: #0b0c0d;
+  --silk: #ece8de;
+  --muted: #8e949c;
+  --line: #2b3036;
+  --led: #ff6a1f;
+  --led-soft: rgba(255, 106, 31, 0.5);
+  --gold: #c8a35a;
+  --keep: #44d69b;
+  --toss: #ff5668;
+  --f-display: "Saira Condensed", "Arial Narrow", sans-serif;
+  --f-mono: "Martian Mono", ui-monospace, Menlo, Consolas, monospace;
+  --f-body: "Instrument Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg);
+  color: var(--silk);
+  font-family: var(--f-body);
+  font-size: 15px;
+  line-height: 1.5;
+}
+button { font: inherit; color: inherit; }
+a { color: var(--silk); }
+
+.app {
+  max-width: 1240px;
+  margin: 0 auto;
+  padding: 24px 20px 48px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 28px;
+  align-items: start;
+}
+header { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 18px; }
+h1 {
+  font-family: var(--f-display);
+  font-weight: 800;
+  font-size: 44px;
+  line-height: 1;
+  letter-spacing: 0.01em;
+  text-transform: uppercase;
+  margin: 0;
+  text-wrap: balance;
+}
+.sub { color: var(--muted); margin: 0; max-width: 62ch; }
+
+/* Controls */
+.controls { display: grid; gap: 14px; margin-bottom: 18px; }
+.group { border: 0; padding: 0; margin: 0; }
+.group legend {
+  font-family: var(--f-mono);
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 8px;
+  padding: 0;
+}
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chip {
+  border: 1px solid var(--line);
+  background: var(--surface);
+  border-radius: 10px;
+  padding: 7px 12px 8px;
+  cursor: pointer;
+  text-align: left;
+  line-height: 1.2;
+  display: grid;
+  gap: 2px;
+}
+.chip b { font-weight: 600; font-size: 14px; }
+.chip span { font-size: 12px; color: var(--muted); }
+.chip:hover { border-color: #3d434b; }
+.chip[aria-pressed="true"] { border-color: var(--led); background: #2a1c14; }
+.chip[aria-pressed="true"] span { color: #f2b48f; }
+.chip:focus-visible, .pin:focus-visible, .port:focus-visible, .btn:focus-visible {
+  outline: 2px solid var(--silk);
+  outline-offset: 2px;
+}
+.hint { margin: 2px 0 0; font-size: 13px; color: var(--muted); }
+.hint strong { color: var(--silk); font-weight: 600; }
+
+/* Board: only the parts you use. Ports and LEDs sit at coordinates measured from the real
+   board (897 × 741 units), so the layout keeps the device's proportions as it scales. */
+.board-wrap { overflow-x: auto; padding: 14px 14px 8px; }
+.stage { container-type: inline-size; width: 100%; max-width: 900px; min-width: 620px; }
+.board {
+  --u: calc(100cqw / 897);
+  position: relative;
+  width: 100%;
+  aspect-ratio: 897 / 741;
+  background: #0e1012;
+  border: 1px solid #262a2f;
+  border-radius: calc(26 * var(--u));
+}
+.board > * { position: absolute; }
+.dz { pointer-events: none; }
+.ttl {
+  writing-mode: vertical-rl;
+  display: flex; align-items: center; justify-content: center; white-space: nowrap;
+  color: var(--muted); opacity: 0.6;
+  font: 500 calc(12 * var(--u))/1 var(--f-mono); letter-spacing: 0.22em;
+}
+.ttl.flip { transform: rotate(180deg); }
+
+.port {
+  padding: 0; cursor: pointer;
+  background: #181b1f;
+  border: max(1px, calc(1.6 * var(--u))) solid #353a41;
+  border-radius: calc(10 * var(--u));
+  color: var(--muted);
+  display: flex; align-items: center; justify-content: center;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease, background 0.15s ease, color 0.15s ease;
+}
+.port .pl {
+  display: flex; flex-direction: column; align-items: center; gap: calc(4 * var(--u));
+  font: 500 calc(12.5 * var(--u))/1.1 var(--f-body); text-align: center; white-space: nowrap;
+  pointer-events: none;
+}
+.port .pl b { font: 600 calc(16 * var(--u))/1 var(--f-body); color: var(--silk); }
+.port[data-port="c"] .pl { writing-mode: vertical-rl; flex-direction: row; }
+.port[data-port="ta3"] { box-shadow: inset calc(-5 * var(--u)) 0 0 #2f6fd6; }
+.port:hover { border-color: #59606a; color: var(--silk); }
+.port.active {
+  border-color: var(--led); background: #23160e; color: #ffb88f;
+  box-shadow: 0 0 calc(20 * var(--u)) calc(2 * var(--u)) rgba(255,106,31,0.25);
+}
+.port.active[data-port="ta3"] { box-shadow: inset calc(-5 * var(--u)) 0 0 #2f6fd6, 0 0 calc(20 * var(--u)) calc(2 * var(--u)) rgba(255,106,31,0.25); }
+.port.active .pl b { color: var(--led); }
+
+.pin { border: 0; padding: 0; background: transparent; cursor: pointer; border-radius: calc(8 * var(--u)); }
+.pin > span { position: absolute; display: block; pointer-events: none; }
+.pin:hover { background: rgba(255,255,255,0.05); }
+.pin .num { display: flex; align-items: center; justify-content: center; color: var(--muted); font: 500 calc(11 * var(--u))/1 var(--f-mono); }
+.pin .name { display: flex; align-items: center; color: var(--silk); font: 500 calc(14 * var(--u))/1 var(--f-mono); white-space: nowrap; }
+.pin.rowA .name { justify-content: flex-end; }
+.pin .lead { background: rgba(236,232,222,0.09); }
+.pin .led {
+  background: #262a2f;
+  border-radius: calc(3 * var(--u));
+  box-shadow: inset 0 0 0 max(1px, calc(1.2 * var(--u))) #464b52;
+  transition: background 0.12s ease, box-shadow 0.12s ease;
+}
+.pin[aria-pressed="true"] .led {
+  background: var(--led);
+  box-shadow: 0 0 calc(10 * var(--u)) calc(2 * var(--u)) var(--led-soft), 0 0 calc(26 * var(--u)) calc(6 * var(--u)) rgba(255,106,31,0.2);
+}
+.pin[aria-pressed="true"] .name { color: #ffd2b8; }
+.pin.missing .led { outline: max(2px, calc(2.5 * var(--u))) dashed var(--toss); outline-offset: calc(5 * var(--u)); }
+.pin.unexpected .led { outline: max(2px, calc(2.5 * var(--u))) solid var(--toss); outline-offset: calc(5 * var(--u)); }
+.pin.unexpected .led::after {
+  content: "!"; position: absolute; top: calc(-16 * var(--u)); right: calc(-16 * var(--u));
+  width: calc(15 * var(--u)); height: calc(15 * var(--u)); min-width: 12px; min-height: 12px; border-radius: 50%;
+  background: var(--toss); color: #1a0d10; font: 700 calc(11 * var(--u))/1 var(--f-body);
+  display: grid; place-items: center;
+}
+.pin:disabled { opacity: 0.18; cursor: not-allowed; }
+.pin:disabled:hover { background: transparent; }
+
+.board-legend { display: flex; flex-wrap: wrap; gap: 6px 18px; margin: 12px 2px 0; font-size: 12px; color: var(--muted); }
+.board-legend i { display: inline-block; width: 15px; height: 9px; border-radius: 2px; vertical-align: -1px; margin-right: 6px; }
+.lg-lit { background: var(--led); box-shadow: 0 0 6px 1px var(--led-soft); }
+.lg-miss { outline: 2px dashed var(--toss); outline-offset: 1px; background: #262a2f; }
+.lg-unx { outline: 2px solid var(--toss); outline-offset: 1px; background: var(--led); }
+.lg-na { background: #262a2f; box-shadow: inset 0 0 0 1px #464b52; opacity: 0.35; }
+
+/* Verdict */
+.verdict {
+  position: sticky; top: 16px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  padding: 20px 20px 18px;
+  display: grid; gap: 14px;
+}
+.verdict[data-status="keep"] { border-color: #2c6b52; box-shadow: inset 0 3px 0 var(--keep); }
+.verdict[data-status="toss"] { border-color: #6e2a33; box-shadow: inset 0 3px 0 var(--toss); }
+.example {
+  font-size: 12px; color: #f2b48f; background: #2a1c14; border: 1px solid #4a2c1c;
+  border-radius: 8px; padding: 6px 10px; margin: 0;
+}
+.word {
+  font-family: var(--f-display); font-weight: 800; font-size: 92px; line-height: 0.82;
+  letter-spacing: 0.01em; text-transform: uppercase; margin: 0;
+  color: var(--muted);
+}
+[data-status="keep"] .word { color: var(--keep); }
+[data-status="toss"] .word { color: var(--toss); }
+.headline { font-size: 17px; font-weight: 600; line-height: 1.35; margin: 0; text-wrap: balance; }
+.identity { font-family: var(--f-mono); font-size: 11px; color: var(--muted); margin: -6px 0 0; letter-spacing: 0.02em; }
+.checks { list-style: none; margin: 0; padding: 0; display: grid; gap: 1px; background: var(--line); border-radius: 10px; overflow: hidden; }
+.checks li { background: #202429; display: grid; grid-template-columns: 22px 1fr; gap: 2px 10px; padding: 8px 12px; align-items: baseline; }
+.checks .st { font-weight: 700; text-align: center; }
+.checks .lab { font-weight: 600; font-size: 14px; }
+.checks .det { grid-column: 2; font-size: 12.5px; color: var(--muted); }
+.st.ok { color: var(--keep); } .st.bad { color: var(--toss); } .st.partial { color: #ffb347; } .st.na { color: var(--muted); }
+
+.target h3 { font-family: var(--f-mono); font-size: 11px; font-weight: 500; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; }
+.target-body { display: flex; gap: 14px; align-items: flex-start; }
+.mini {
+  flex: none;
+  display: grid; grid-template-columns: 10px 10px; grid-auto-rows: 6px; gap: 4px 8px;
+  background: var(--board); padding: 10px 12px; border-radius: 10px;
+}
+.mini span { width: 10px; height: 6px; border-radius: 1px; background: #4a4d50; }
+.mini span.on { background: var(--led); box-shadow: 0 0 5px 1px var(--led-soft); }
+.mini span.na, .mini span.sp { background: transparent; box-shadow: none; }
+.mini span.gap { height: 2px; }
+.target p { margin: 0; font-size: 12.5px; color: var(--muted); }
+
+.notes { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; }
+.notes li { font-size: 13px; color: #cfcac0; padding-left: 14px; border-left: 2px solid #4a4f56; }
+
+.actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.btn {
+  border-radius: 10px; padding: 10px 14px; cursor: pointer; font-weight: 600; font-size: 14px;
+  border: 1px solid var(--line); background: transparent;
+}
+.btn.primary { background: var(--silk); color: #141518; border-color: var(--silk); }
+.btn.primary:hover { background: #fff; }
+.btn:not(.primary):hover { border-color: #4a5058; }
+.btn[aria-pressed="true"] { border-color: var(--toss); color: #ffc2c9; }
+.tally { font-size: 12.5px; color: var(--muted); display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+.tally b { color: var(--silk); font-variant-numeric: tabular-nums; }
+.linkbtn { background: none; border: 0; padding: 0; color: var(--muted); text-decoration: underline; cursor: pointer; font-size: 12.5px; }
+
+/* How it decides */
+.how { margin-top: 28px; max-width: 72ch; }
+.how h2 { font-family: var(--f-display); font-size: 26px; font-weight: 700; text-transform: uppercase; margin: 0 0 8px; letter-spacing: 0.01em; }
+.how p, .how li { color: #cfcac0; font-size: 14px; }
+.how ul { padding-left: 18px; margin: 8px 0; }
+.rules { width: 100%; border-collapse: collapse; margin: 10px 0 14px; font-size: 13px; }
+.rules th, .rules td { text-align: left; padding: 7px 10px 7px 0; border-bottom: 1px solid var(--line); vertical-align: top; }
+.rules th { font-family: var(--f-mono); font-size: 10.5px; font-weight: 500; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+.rules td:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; }
+
+/* Phone bar */
+.mbar { display: none; }
+
+@media (max-width: 1100px) {
+  .app { grid-template-columns: minmax(0, 1fr); }
+  .verdict { position: static; }
+  .mbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 5;
+    align-items: center; gap: 12px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom));
+    background: rgba(19,21,24,0.96); border-top: 1px solid var(--line);
+    backdrop-filter: blur(6px);
+  }
+  .mbar .mword { font-family: var(--f-display); font-weight: 800; font-size: 30px; line-height: 1; text-transform: uppercase; color: var(--muted); min-width: 64px; }
+  .mbar[data-status="keep"] .mword { color: var(--keep); }
+  .mbar[data-status="toss"] .mword { color: var(--toss); }
+  .mbar .mhead { font-size: 13px; line-height: 1.3; flex: 1; min-width: 0; }
+  .mbar .btn { padding: 8px 12px; }
+  body { padding-bottom: 76px; }
+}
+@media (max-width: 560px) {
+  .app { padding: 18px 14px 40px; }
+  h1 { font-size: 34px; }
+  .word { font-size: 76px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; }
+}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>USB Cable Keep-or-Toss</h1>
+    <p class="sub">For the Treedix USB cable tester board. Pick the two plugs, tap every LED that lights, and get a verdict: is this the best result that cable type can show?</p>
+  </header>
+
+  <main>
+    <div class="controls">
+      <fieldset class="group">
+        <legend>Near end · left-edge ports</legend>
+        <div class="chips" id="nearChips"></div>
+      </fieldset>
+      <fieldset class="group">
+        <legend>Far end · right and bottom ports</legend>
+        <div class="chips" id="farChips"></div>
+      </fieldset>
+      <p class="hint" id="plugHint"></p>
+    </div>
+
+    <div class="board-wrap">
+      <div class="stage"><div class="board" id="board"></div></div>
+    </div>
+    <div class="board-legend" aria-hidden="true">
+      <span><i class="lg-lit"></i>Lit (you tapped it)</span>
+      <span><i class="lg-miss"></i>Should be lit</span>
+      <span><i class="lg-unx"></i>Shouldn't be lit</span>
+      <span><i class="lg-na"></i>Can't light for this port</span>
+    </div>
+
+    <section class="how" aria-labelledby="howTitle">
+      <h2 id="howTitle">How it decides</h2>
+      <p>On this board every pin of the left-edge ports connects to the battery, and every pin of the far-end port drives its own LED. A lit LED means that pin reaches the other end of the cable. A cable gets <strong>Keep</strong> when every pin its two plugs can carry lights, nothing else lights, and the shield is connected.</p>
+      <table class="rules">
+        <thead><tr><th>Cable</th><th>Best possible</th><th>LEDs</th></tr></thead>
+        <tbody>
+          <tr><td>USB-C ↔ USB-C</td><td>Everything except one D+/D− pair: 4 GND, 4 VBUS, both CC, 8 SuperSpeed, both SBU, Shield</td><td>23</td></tr>
+          <tr><td>USB-A 3.x → USB-C</td><td>4 GND, 4 VBUS, one D+/D− pair, one TX and one RX pair, Shield. CC isn't judged.</td><td>15</td></tr>
+          <tr><td>USB-A 2.0 → USB-C</td><td>4 GND, 4 VBUS, one D+/D− pair, Shield</td><td>11</td></tr>
+          <tr><td>→ Micro-B 3.0, USB-B 3.0</td><td>GND, VBUS, D+, D−, 4 SuperSpeed, Shield. ID dark.</td><td>9</td></tr>
+          <tr><td>→ Micro-B, Mini-B, USB-B</td><td>GND, VBUS, D+, D−, Shield. ID dark.</td><td>5</td></tr>
+          <tr><td>→ Lightning</td><td>GND, VBUS, D+, D−</td><td>4</td></tr>
+        </tbody>
+      </table>
+      <ul>
+        <li>The best a cable can do is set by its weaker plug. A Micro-B 2.0 or USB-A 2.0 plug tops out at USB 2.0, so a fully wired USB 2.0 cable with one of those plugs gets Keep.</li>
+        <li>Put USB-A 3.x plugs in the blue Type-A 3.0 port. The Type-A 2.0 port has no SuperSpeed contacts.</li>
+        <li>Treedix doesn't document which LEDs the Micro-B 3.0 and USB-B 3.0 SuperSpeed pins use. The checker expects TX2± and RX1±. If your board uses others, any four lit SuperSpeed LEDs still count.</li>
+        <li>LEDs can't show wire thickness (charging speed), swapped wires, or signal quality. Chips in Lightning plugs and e-marked USB-C cables can change the pattern.</li>
+      </ul>
+      <p>Sources: <a href="https://manuals.plus/treedix/usb-cable-data-line-test-board-manual">Treedix test board manual</a> · <a href="https://github.com/patrickgardella/usbcabletester">Community LED guide for this board</a></p>
+    </section>
+  </main>
+
+  <aside class="verdict" id="verdict" data-status="keep" aria-live="polite">
+    <p class="example" id="example">Example: a fully wired USB-A → Micro-B cable. Press <strong>Next cable</strong> to start.</p>
+    <p class="word" id="word">Keep</p>
+    <p class="headline" id="headline"></p>
+    <p class="identity" id="identity"></p>
+    <ul class="checks" id="checks"></ul>
+    <div class="target">
+      <h3>Best possible for this cable</h3>
+      <div class="target-body">
+        <div class="mini" id="mini" aria-hidden="true"></div>
+        <p id="targetText"></p>
+      </div>
+    </div>
+    <ul class="notes" id="notes"></ul>
+    <div class="actions">
+      <button class="btn primary" id="nextBtn" type="button">Next cable</button>
+      <button class="btn" id="nothingBtn" type="button" aria-pressed="false">Nothing lights up</button>
+    </div>
+    <div class="tally" id="tally"></div>
+  </aside>
+</div>
+
+<div class="mbar" id="mbar" data-status="keep">
+  <span class="mword" id="mword">Keep</span>
+  <span class="mhead" id="mhead"></span>
+  <button class="btn primary" id="mnext" type="button">Next</button>
+</div>
+
+<script>
+// ===== LOGIC START =====
+const PIN = {
+  A1: "GND", A2: "TX1+", A3: "TX1−", A4: "VBUS", A5: "CC1", A6: "D+", A7: "D−", A8: "SBU1",
+  A9: "VBUS", A10: "RX2−", A11: "RX2+", A12: "GND",
+  B1: "GND", B2: "TX2+", B3: "TX2−", B4: "VBUS", B5: "CC2", B6: "D+", B7: "D−", B8: "SBU2",
+  B9: "VBUS", B10: "RX1−", B11: "RX1+", B12: "GND",
+  SH: "Shield", ID: "ID"
+};
+const NEAR = {
+  c:  { label: "USB-C", sub: "Type-C port", port: "tc", cap: 4 },
+  a3: { label: "USB-A 3.x", sub: "blue tongue, 9 contacts", port: "ta3", cap: 3 },
+  a2: { label: "USB-A 2.0", sub: "4 contacts", port: "ta2", cap: 2 }
+};
+const FAR = {
+  c:         { label: "USB-C", sub: "port b", port: "b", cap: 4, kind: "c", id: false, shield: true },
+  mb2:       { label: "Micro-B", sub: "port f · phone-style", port: "f", cap: 2, kind: "legacy", id: true, shield: true },
+  mb3:       { label: "Micro-B 3.0", sub: "port c · wide, two-part", port: "c", cap: 3, kind: "legacy", id: true, shield: true },
+  mini:      { label: "Mini-B", sub: "port d", port: "d", cap: 2, kind: "legacy", id: true, shield: true },
+  lightning: { label: "Lightning", sub: "port e", port: "e", cap: 2, kind: "legacy", id: false, shield: false },
+  b2:        { label: "USB-B", sub: "port a · square plug", port: "a", cap: 2, kind: "legacy", id: false, shield: true },
+  b3:        { label: "USB-B 3.0", sub: "port a · tall plug", port: "a", cap: 3, kind: "legacy", id: false, shield: true }
+};
+const GND_C = ["A1", "A12", "B1", "B12"];
+const VBUS_C = ["A4", "A9", "B4", "B9"];
+const SS_ALL = ["A2", "A3", "A10", "A11", "B2", "B3", "B10", "B11"];
+const SS_N = ["A2", "A3", "B10", "B11"];
+const SS_F = ["B2", "B3", "A10", "A11"];
+const SS_LEG = ["B2", "B3", "B10", "B11"];
+const SS_POOL = ["B2", "B3", "B5", "B8", "B10", "B11"];
+
+function applicableSet(farKey) {
+  const f = FAR[farKey];
+  const s = new Set();
+  for (let i = 1; i <= 12; i++) {
+    s.add("B" + i);
+    if (f.kind === "c") s.add("A" + i);
+  }
+  s.add("SH");
+  if (f.id) s.add("ID");
+  return s;
+}
+
+function evaluate(st) {
+  const f = FAR[st.far];
+  const n = NEAR[st.near];
+  const cap = Math.min(f.cap, n.cap);
+  const app = applicableSet(st.far);
+  const lit = new Set([...st.lit].filter((x) => app.has(x)));
+  const L = (id) => lit.has(id);
+  const cnt = (arr) => arr.filter(L).length;
+  const r = {
+    cap, applicable: app, lit, target: new Set(), allowed: new Set(), unexpected: new Set(),
+    checks: [], notes: [], problems: [], flags: {}
+  };
+  const prob = (sev, head) => r.problems.push({ sev, head });
+  const check = (key, label, state, detail) => {
+    r.checks.push({ label, state, detail });
+    r.flags[key] = state;
+  };
+
+  if (f.kind === "c") evalC(r, f, n, L, cnt, prob, check);
+  else evalLegacy(r, st, f, cap, L, cnt, prob, check);
+
+  for (const id of lit) {
+    if (!r.target.has(id) && !r.allowed.has(id)) r.unexpected.add(id);
+  }
+  if (r.unexpected.size) {
+    const names = [...r.unexpected].map((id) => id === "SH" || id === "ID" ? PIN[id] : id + " " + PIN[id]).join(", ");
+    prob(2.5, st.far === "lightning"
+      ? "Unexpected LEDs lit (" + names + "): flip the Lightning plug over and retest"
+      : "Unexpected LEDs lit (" + names + "): likely a short between wires");
+  }
+  r.problems.sort((a, b) => a.sev - b.sev);
+
+  if (st.nothing) {
+    r.status = "toss";
+    r.headline = "Nothing lights up";
+    r.identity = "Dead cable, or a plug isn't seated";
+    r.notes.unshift("Push both plugs in firmly and test once more before tossing.");
+  } else if (lit.size === 0) {
+    r.status = "empty";
+    r.headline = "Tap every LED that's lit on your board";
+    r.identity = "";
+  } else if (r.problems.length) {
+    r.status = "toss";
+    r.headline = r.problems[0].head;
+  } else {
+    r.status = "keep";
+    r.headline = "Best possible result for " + n.label + " → " + f.label + ".";
+  }
+  if (r.identity === undefined) r.identity = identity(r, f, n);
+  r.missing = new Set([...r.target].filter((x) => !lit.has(x)));
+  return r;
+}
+
+function evalLegacy(r, st, f, cap, L, cnt, prob, check) {
+  const gnd = L("B1") || L("B12");
+  const vbus = L("B9") || L("B4");
+  r.target.add(L("B12") && !L("B1") ? "B12" : "B1");
+  r.target.add(L("B4") && !L("B9") ? "B4" : "B9");
+  ["B1", "B12", "B4", "B9"].forEach((x) => r.allowed.add(x));
+  if (gnd && vbus) check("power", "Power", "ok", "VBUS and GND reach the far end");
+  else {
+    check("power", "Power", "bad", !gnd && !vbus ? "No VBUS or GND" : !gnd ? "GND missing" : "VBUS missing");
+    prob(1, !gnd && !vbus ? "No power path: broken cable" : "Broken power wire");
+  }
+
+  r.target.add("B6"); r.target.add("B7");
+  const d = cnt(["B6", "B7"]);
+  if (d === 2) check("data", "USB 2.0 data", "ok", "D+ and D− connected");
+  else if (d === 1) { check("data", "USB 2.0 data", "partial", (L("B6") ? "D−" : "D+") + " missing"); prob(4, "Broken data wire"); }
+  else { check("data", "USB 2.0 data", "bad", "No D+ or D−"); prob(5, "Charge-only: no data wires"); }
+
+  if (f.cap === 3 && cap === 3) {
+    const pool = SS_POOL.concat(L("B9") ? ["B4"] : []);
+    const strict = cnt(SS_LEG);
+    const alt = cnt(pool);
+    pool.forEach((x) => r.allowed.add(x));
+    r.allowed.add("B12");
+    if (strict === 4) {
+      SS_LEG.forEach((x) => r.target.add(x));
+      check("ss", "SuperSpeed", "ok", "All 4 SuperSpeed LEDs lit");
+    } else if (alt >= 4) {
+      pool.filter(L).forEach((x) => r.target.add(x));
+      check("ss", "SuperSpeed", "ok", alt + " SuperSpeed LEDs lit");
+      r.notes.push("Your board lit a different set of SuperSpeed LEDs than expected. Treedix doesn't document this mapping, so that's fine if your other " + f.label + " cables light the same set.");
+    } else if (alt > 0) {
+      SS_LEG.forEach((x) => r.target.add(x));
+      check("ss", "SuperSpeed", "partial", alt + " of 4 lit");
+      prob(6, "Broken SuperSpeed wire");
+    } else {
+      SS_LEG.forEach((x) => r.target.add(x));
+      check("ss", "SuperSpeed", "bad", "None lit");
+      prob(7, "USB 2.0 only: the SuperSpeed wires are missing");
+    }
+  } else if (f.cap === 3) {
+    check("ss", "SuperSpeed", "na", "Not possible with a USB-A 2.0 plug");
+    if (r.flags.data === "ok") r.notes.push("A USB-A 2.0 plug has no SuperSpeed contacts, so USB 2.0 is the best this cable can do.");
+  } else {
+    check("ss", "SuperSpeed", "na", f.label + " plugs are USB 2.0 only");
+  }
+
+  if (f.shield) {
+    r.target.add("SH");
+    if (L("SH")) check("shield", "Shield", "ok", "Plug shells connected");
+    else { check("shield", "Shield", "bad", "Plug shells not connected"); prob(12, "Shield not connected"); }
+  } else {
+    r.allowed.add("SH");
+    check("shield", "Shield", "na", "Not judged for Lightning");
+  }
+
+  if (f.id) {
+    r.allowed.add("ID");
+    if (L("ID")) { check("id", "ID pin", "bad", "Wired"); prob(9, "ID pin is wired: an OTG or accessory cable, not a plain one"); }
+    else check("id", "ID pin", "ok", "Unconnected, as on a standard cable");
+  }
+  if (st.far === "lightning") {
+    r.notes.push("Lightning plugs contain a chip. If fewer than 4 LEDs light, flip the Lightning plug over and test again before tossing.");
+  }
+}
+
+function evalC(r, f, n, L, cnt, prob, check) {
+  GND_C.concat(VBUS_C).forEach((x) => r.target.add(x));
+  const g = cnt(GND_C), v = cnt(VBUS_C);
+  if (g === 4 && v === 4) check("power", "Power", "ok", "All 4 GND and 4 VBUS lit");
+  else if (g === 0 || v === 0) {
+    check("power", "Power", "bad", g === 0 && v === 0 ? "No GND or VBUS" : g === 0 ? "No GND" : "No VBUS");
+    prob(1, "No power path: broken cable");
+  } else {
+    check("power", "Power", "partial", g + " of 4 GND, " + v + " of 4 VBUS");
+    prob(2, "Only some GND/VBUS LEDs lit: reseat the USB-C plug. If it repeats, the plug is missing contacts");
+  }
+
+  const dN = L("A6") && L("A7");
+  const dF = L("B6") && L("B7");
+  let ori = dN ? "N" : dF ? "F" : null;
+  if (!ori && n.cap === 3) {
+    const a = cnt(SS_N), b = cnt(SS_F);
+    if (a || b) ori = b > a ? "F" : "N";
+  }
+  if (!ori && n.cap === 4 && L("B5") && !L("A5")) ori = "F";
+  if (!ori && (L("B6") || L("B7")) && !(L("A6") || L("A7"))) ori = "F";
+  ori = ori || "N";
+  const pair = ori === "F" ? ["B6", "B7"] : ["A6", "A7"];
+  const other = ori === "F" ? ["A6", "A7"] : ["B6", "B7"];
+  pair.forEach((x) => r.target.add(x));
+  other.forEach((x) => r.allowed.add(x));
+  if (dN || dF) check("data", "USB 2.0 data", "ok", "D+ and D− connected");
+  else if (cnt(["A6", "A7", "B6", "B7"]) > 0) { check("data", "USB 2.0 data", "partial", "Only one of D+ / D−"); prob(4, "Broken data wire"); }
+  else { check("data", "USB 2.0 data", "bad", "No D+ or D−"); prob(5, "Charge-only: no data wires"); }
+
+  if (n.cap === 4) {
+    r.target.add("A5"); r.target.add("B5");
+    const cc = cnt(["A5", "B5"]);
+    if (cc === 2) check("cc", "CC", "ok", "Both lit: the cable has an e-marker chip");
+    else if (cc === 1) { check("cc", "CC", "partial", "One lit: no e-marker, 3 A max"); prob(11, "Only one CC line: a basic cable, not full-featured"); }
+    else { check("cc", "CC", "bad", "None lit"); prob(3, "No CC line: chargers won't power this cable"); }
+
+    SS_ALL.forEach((x) => r.target.add(x));
+    const k = cnt(SS_ALL);
+    if (k === 8) check("ss", "SuperSpeed", "ok", "All 8 lit (USB 3.x / USB4 lanes)");
+    else if (k > 0) { check("ss", "SuperSpeed", "partial", k + " of 8 lit"); prob(6, "Broken SuperSpeed wire"); }
+    else { check("ss", "SuperSpeed", "bad", "None lit: a USB 2.0 cable (480 Mbps)"); prob(7, "USB 2.0 only: no SuperSpeed wires"); }
+
+    r.target.add("A8"); r.target.add("B8");
+    const sb = cnt(["A8", "B8"]);
+    if (sb === 2) check("sbu", "SBU", "ok", "Both lit (used for DisplayPort over USB-C)");
+    else if (sb === 1) { check("sbu", "SBU", "partial", "1 of 2 lit"); prob(10, "Broken SBU wire"); }
+    else { check("sbu", "SBU", "bad", "None lit"); prob(10, "No SBU wires: video over USB-C may fail"); }
+
+    if (g > 0 && v > 0 && (dN || dF) && k === 0 && cc === 2) {
+      r.notes.push("This pattern usually means a 5 A (100–240 W) USB 2.0 charging cable. That's the right cable for fast-charging a laptop, so consider keeping one or two even though it isn't the best possible result.");
+    }
+  } else {
+    ["A5", "B5"].forEach((x) => r.allowed.add(x));
+    check("cc", "CC", "na", "Not judged: on this board CC only lights for USB-C ↔ USB-C cables");
+    if (n.cap === 3) {
+      const a = cnt(SS_N), b = cnt(SS_F);
+      const set = a === 4 ? SS_N : b === 4 ? SS_F : ori === "F" ? SS_F : SS_N;
+      set.forEach((x) => r.target.add(x));
+      const k = cnt(set);
+      const stray = SS_ALL.filter((x) => !set.includes(x) && L(x)).length;
+      if (k === 4) check("ss", "SuperSpeed", "ok", "All 4 lit (one TX pair, one RX pair)");
+      else if (k + stray > 0) { check("ss", "SuperSpeed", "partial", k + " of 4 lit"); prob(6, "Broken SuperSpeed wire"); }
+      else { check("ss", "SuperSpeed", "bad", "None lit"); prob(7, "USB 2.0 only: the SuperSpeed wires are missing"); }
+    } else {
+      check("ss", "SuperSpeed", "na", "Not possible with a USB-A 2.0 plug");
+      if (r.flags.data === "ok") r.notes.push("A USB-A 2.0 plug has no SuperSpeed contacts, so USB 2.0 is the best this cable can do.");
+    }
+    check("sbu", "SBU", "na", "USB-A plugs have no SBU pins");
+  }
+
+  r.target.add("SH");
+  if (L("SH")) check("shield", "Shield", "ok", "Plug shells connected");
+  else { check("shield", "Shield", "bad", "Plug shells not connected"); prob(12, "Shield not connected"); }
+}
+
+function identity(r, f, n) {
+  const fl = r.flags;
+  if (fl.power === "bad") return "Reads as: broken cable";
+  if (fl.data !== "ok" && fl.ss !== "ok" && fl.data === "bad") return "Reads as: charge-only cable";
+  if (fl.ss === "ok") {
+    if (f.kind === "c" && n.cap === 4) {
+      return fl.sbu === "ok" && fl.cc === "ok"
+        ? "Reads as: full-featured USB-C (USB 3.x / USB4 wiring)"
+        : "Reads as: USB-C with SuperSpeed wiring";
+    }
+    return "Reads as: USB 3.x data + charging";
+  }
+  if (fl.ss === "partial") return "Reads as: USB 3.x cable with a damaged lane";
+  if (fl.data === "ok") return fl.cc === "ok" && f.kind === "c" && n.cap === 4
+    ? "Reads as: USB 2.0 data + e-marked charging"
+    : "Reads as: USB 2.0 data + charging";
+  return "Reads as: damaged cable";
+}
+// ===== LOGIC END =====
+const PIN_NUM = ["", "①", "②", "③", "④", "⑤", "⑥", "⑦", "⑧", "⑨", "⑩", "⑪", "⑫"];
+const state = {
+  near: "a3",
+  far: "mb2",
+  lit: new Set(["B1", "B6", "B7", "B9", "SH"]),
+  nothing: false,
+  example: true,
+  tally: { keep: 0, toss: 0 }
+};
+
+function loadTally() {
+  try {
+    const t = JSON.parse(localStorage.getItem("cable-keep-toss-tally") || "null");
+    if (t && typeof t.keep === "number" && typeof t.toss === "number") state.tally = t;
+  } catch (e) { /* storage unavailable */ }
+}
+function saveTally() {
+  try { localStorage.setItem("cable-keep-toss-tally", JSON.stringify(state.tally)); } catch (e) { /* ignore */ }
+}
+
+// ---- Board geometry, in units measured from the real board (origin at its top-left corner) ----
+const BX = 540, BY = 489, BW = 897, BH = 741;
+const ROW0 = 716.5, PITCH = 35.1, RH = 35;
+
+function mk(tag, cls, html) {
+  const e = document.createElement(tag);
+  if (cls) e.className = cls;
+  if (html != null) e.innerHTML = html;
+  return e;
+}
+function place(el, x, y, w, h) {
+  el.style.left = ((x - BX) / BW * 100) + "%";
+  el.style.top = ((y - BY) / BH * 100) + "%";
+  el.style.width = (w / BW * 100) + "%";
+  el.style.height = (h / BH * 100) + "%";
+  return el;
+}
+function deco(board, cls, x, y, w, h, html, fontU, extra) {
+  const e = place(mk("div", "dz " + cls, html), x, y, w, h);
+  if (fontU) e.style.fontSize = "calc(" + fontU + " * var(--u))";
+  if (extra) Object.assign(e.style, extra);
+  e.setAttribute("aria-hidden", "true");
+  board.appendChild(e);
+  return e;
+}
+// child of a pin button, centred at (cx, cy) inside a box of bw × bh units
+function sub(parent, cls, cx, cy, w, h, bw, bh, html) {
+  const e = mk("span", cls, html);
+  e.style.left = ((cx - w / 2) / bw * 100) + "%";
+  e.style.top = ((cy - h / 2) / bh * 100) + "%";
+  e.style.width = (w / bw * 100) + "%";
+  e.style.height = (h / bh * 100) + "%";
+  parent.appendChild(e);
+  return e;
+}
+
+function pinButton(id, row) {
+  const b = mk("button", "pin row" + row);
+  b.type = "button";
+  b.dataset.id = id;
+  const n = /\d/.test(id) ? parseInt(id.slice(1), 10) : 0;
+  const cy = RH / 2;
+  if (row === "B") {
+    // number · name · leader · LED; the LED faces the centre of the board, as on the device
+    const bw = 212;
+    sub(b, "num", 14, cy, 22, 20, bw, RH, String(n));
+    sub(b, "name", 64, cy, 66, 22, bw, RH, PIN[id]);
+    sub(b, "lead", 134, cy, 64, 1.2, bw, RH);
+    sub(b, "led", 185, cy, 30, 14, bw, RH);
+  } else if (row === "A") {
+    const bw = 214;
+    sub(b, "led", 21, cy, 30, 14, bw, RH);
+    sub(b, "lead", 72, cy, 64, 1.2, bw, RH);
+    sub(b, "name", 147, cy, 66, 22, bw, RH, PIN[id]);
+    sub(b, "num", 196, cy, 22, 20, bw, RH, String(n));
+  } else {
+    // ID and Shield, under Pinrow B
+    const bw = 120, bh = 36;
+    sub(b, "led", 27, bh / 2, 30, 14, bw, bh);
+    sub(b, "name", 82, bh / 2, 64, 20, bw, bh, PIN[id]);
+  }
+  b.addEventListener("click", () => {
+    state.example = false;
+    state.nothing = false;
+    if (state.lit.has(id)) state.lit.delete(id); else state.lit.add(id);
+    render();
+  });
+  return b;
+}
+
+const PORTS = [
+  { port: "ta3", x: 530, y: 615, w: 150, h: 145, name: "USB-A 3.0", label: "Type-A 3.0 port, top of the left edge: near end is a USB-A 3.x plug" },
+  { port: "ta2", x: 530, y: 797, w: 138, h: 140, name: "USB-A 2.0", label: "Type-A 2.0 port, middle of the left edge: near end is a USB-A 2.0 plug" },
+  { port: "tc",  x: 530, y: 992, w: 138, h: 95,  name: "USB-C", label: "Type-C 3.0 port, bottom of the left edge: near end is USB-C" },
+  { port: "a",   x: 1247, y: 620, w: 198, h: 147, letter: "a", name: "USB-B 3.0", label: "Port a, Type-B 3.0, top of the right edge" },
+  { port: "b",   x: 1310, y: 818, w: 132, h: 94,  letter: "b", name: "USB-C", label: "Port b, Type-C 3.0, right edge" },
+  { port: "c",   x: 1375, y: 960, w: 65,  h: 152, letter: "c", name: "Micro-B 3.0", label: "Port c, Micro-B 3.0, right edge" },
+  { port: "f",   x: 950,  y: 1168, w: 90, h: 68,  letter: "f", name: "Micro-B", label: "Port f, Micro-B 2.0, bottom edge" },
+  { port: "e",   x: 1060, y: 1130, w: 132, h: 98, letter: "e", name: "Lightning", label: "Port e, Lightning, bottom edge" },
+  { port: "d",   x: 1222, y: 1127, w: 108, h: 105, letter: "d", name: "Mini-B", label: "Port d, Mini-B 2.0, bottom edge" }
+];
+
+function buildBoard() {
+  const board = document.getElementById("board");
+  const actions = {
+    tc: () => setNear("c"), ta3: () => setNear("a3"), ta2: () => setNear("a2"),
+    f: () => setFar("mb2"), e: () => setFar("lightning"), d: () => setFar("mini"),
+    c: () => setFar("mb3"), b: () => setFar("c"), a: () => setFar(state.far === "b3" ? "b2" : "b3")
+  };
+
+  for (let i = 1; i <= 12; i++) {
+    const y = ROW0 + (i - 1) * PITCH - RH / 2;
+    board.appendChild(place(pinButton("B" + i, "B"), 733, y, 212, RH));
+    board.appendChild(place(pinButton("A" + (13 - i), "A"), 1026, y, 214, RH));
+  }
+  deco(board, "ttl", 948, 790, 26, 250, "PINROW B");
+  deco(board, "ttl flip", 1001, 790, 26, 250, "PINROW A");
+  board.appendChild(place(pinButton("ID", "X"), 813, 1128, 120, 36));
+  board.appendChild(place(pinButton("SH", "X"), 813, 1170, 120, 36));
+
+  PORTS.forEach((p) => {
+    const btn = place(mk("button", "port"), p.x, p.y, p.w, p.h);
+    btn.type = "button";
+    btn.dataset.port = p.port;
+    btn.setAttribute("aria-label", p.label);
+    btn.innerHTML = '<span class="pl">' + (p.letter ? "<b>" + p.letter + "</b>" : "") + "<span>" + p.name + "</span></span>";
+    btn.addEventListener("click", actions[p.port]);
+    board.appendChild(btn);
+  });
+}
+
+function buildChips() {
+  const nc = document.getElementById("nearChips");
+  Object.entries(NEAR).forEach(([key, v]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.near = key;
+    b.innerHTML = "<b>" + v.label + "</b><span>" + v.sub + "</span>";
+    b.addEventListener("click", () => setNear(key));
+    nc.appendChild(b);
+  });
+  const fc = document.getElementById("farChips");
+  Object.entries(FAR).forEach(([key, v]) => {
+    const b = document.createElement("button");
+    b.type = "button"; b.className = "chip"; b.dataset.far = key;
+    b.innerHTML = "<b>" + v.label + "</b><span>" + v.sub + "</span>";
+    b.addEventListener("click", () => setFar(key));
+    fc.appendChild(b);
+  });
+}
+
+function setNear(key) { state.near = key; state.example = false; render(); }
+function setFar(key) {
+  state.far = key; state.example = false;
+  const app = applicableSet(key);
+  state.lit = new Set([...state.lit].filter((x) => app.has(x)));
+  render();
+}
+
+function nextCable() {
+  const r = evaluate(state);
+  if (!state.example && (r.status === "keep" || r.status === "toss")) {
+    state.tally[r.status] += 1;
+    saveTally();
+  }
+  state.lit = new Set();
+  state.nothing = false;
+  state.example = false;
+  render();
+}
+
+function renderMini(r) {
+  const mini = document.getElementById("mini");
+  const dot = (id) => {
+    const cls = !r.applicable.has(id) ? "na" : r.target.has(id) ? "on" : "";
+    return '<span class="' + cls + '"></span>';
+  };
+  const cells = [];
+  for (let i = 1; i <= 12; i++) cells.push(dot("B" + i), dot("A" + (13 - i)));
+  cells.push('<span class="sp gap"></span>', '<span class="sp gap"></span>');
+  cells.push(dot("ID"), '<span class="sp"></span>', dot("SH"), '<span class="sp"></span>');
+  mini.innerHTML = cells.join("");
+  const order = (id) => id === "SH" ? 99 : (id[0] === "B" ? 0 : 20) + parseInt(id.slice(1), 10);
+  const names = [...r.target].sort((a, b) => order(a) - order(b))
+    .map((id) => id === "SH" ? "Shield" : id).join(", ");
+  const darkId = r.applicable.has("ID") ? " ID stays dark." : "";
+  document.getElementById("targetText").textContent =
+    r.target.size + " LEDs: " + names + "." + darkId + " Left column is Pinrow B, right is Pinrow A, as on the board.";
+}
+
+function render() {
+  const r = evaluate(state);
+  const f = FAR[state.far], n = NEAR[state.near];
+
+  document.querySelectorAll("[data-near]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.near === state.near)));
+  document.querySelectorAll("[data-far]").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.far === state.far)));
+  document.querySelectorAll(".port").forEach((p) => {
+    const port = p.dataset.port;
+    p.classList.toggle("active", port === n.port || port === f.port);
+  });
+  const nearPortName = {
+    tc: "the Type-C 3.0 port (bottom of the left edge)",
+    ta3: "the blue Type-A 3.0 port (top of the left edge)",
+    ta2: "the Type-A 2.0 port (middle of the left edge)"
+  }[n.port];
+  const farPortName = {
+    a: "port a (Type-B 3.0, top right)", b: "port b (Type-C 3.0, right edge)", c: "port c (Micro-B 3.0, right edge)",
+    f: "port f (Micro-B 2.0, bottom edge)", e: "port e (Lightning, bottom edge)", d: "port d (Mini-B 2.0, bottom edge)"
+  }[f.port];
+  document.getElementById("plugHint").innerHTML =
+    "Plug the near end into <strong>" + nearPortName + "</strong> and the far end into <strong>" + farPortName + "</strong>, then tap every LED that lights.";
+
+  const showMarks = !state.example && (r.lit.size > 0 || state.nothing);
+  document.querySelectorAll(".pin").forEach((b) => {
+    const id = b.dataset.id;
+    const applicable = r.applicable.has(id);
+    b.disabled = !applicable;
+    const on = state.lit.has(id) && applicable;
+    b.setAttribute("aria-pressed", String(on));
+    b.classList.toggle("missing", showMarks && applicable && r.missing.has(id));
+    b.classList.toggle("unexpected", showMarks && r.unexpected.has(id));
+    const label = (id === "SH" || id === "ID" ? PIN[id] : id + " " + PIN[id]) + " LED";
+    b.setAttribute("aria-label", applicable ? label : label + ", can't light for this port");
+  });
+
+  const v = document.getElementById("verdict");
+  v.dataset.status = r.status;
+  document.getElementById("example").hidden = !state.example;
+  const word = r.status === "keep" ? "Keep" : r.status === "toss" ? "Toss" : "—";
+  document.getElementById("word").textContent = word;
+  document.getElementById("headline").textContent = r.headline;
+  const idEl = document.getElementById("identity");
+  idEl.textContent = r.identity;
+  idEl.hidden = !r.identity;
+
+  const checks = document.getElementById("checks");
+  const sym = { ok: "✓", bad: "✕", partial: "◐", na: "–" };
+  checks.innerHTML = r.status === "empty" ? "" : r.checks.map((c) =>
+    '<li><span class="st ' + c.state + '">' + sym[c.state] + '</span><span class="lab">' + c.label +
+    '</span><span class="det">' + c.detail + "</span></li>").join("");
+  checks.hidden = r.status === "empty";
+
+  renderMini(r);
+  const notes = document.getElementById("notes");
+  notes.innerHTML = r.notes.map((t) => "<li>" + t + "</li>").join("");
+  notes.hidden = r.notes.length === 0;
+
+  document.getElementById("nothingBtn").setAttribute("aria-pressed", String(state.nothing));
+  document.getElementById("tally").innerHTML =
+    "<span>This session: <b>" + state.tally.keep + "</b> kept · <b>" + state.tally.toss + "</b> tossed</span>" +
+    (state.tally.keep + state.tally.toss ? '<button class="linkbtn" id="resetTally" type="button">Reset count</button>' : "");
+  const rt = document.getElementById("resetTally");
+  if (rt) rt.addEventListener("click", () => { state.tally = { keep: 0, toss: 0 }; saveTally(); render(); });
+
+  const mbar = document.getElementById("mbar");
+  mbar.dataset.status = r.status;
+  document.getElementById("mword").textContent = word;
+  document.getElementById("mhead").textContent = r.headline;
+}
+
+function start(snap) {
+  if (snap && snap.near && NEAR[snap.near] && FAR[snap.far]) {
+    state.near = snap.near; state.far = snap.far;
+    state.lit = new Set(snap.lit || []);
+    state.nothing = !!snap.nothing; state.example = !!snap.example;
+    if (snap.tally) state.tally = snap.tally;
+  } else {
+    loadTally();
+  }
+  buildBoard();
+  buildChips();
+  document.getElementById("nextBtn").addEventListener("click", nextCable);
+  document.getElementById("mnext").addEventListener("click", nextCable);
+  document.getElementById("nothingBtn").addEventListener("click", () => {
+    state.nothing = !state.nothing;
+    state.example = false;
+    if (state.nothing) state.lit = new Set();
+    render();
+  });
+  render();
+}
+
+if (window.claude && window.claude.hot && window.claude.hot.snapshot) {
+  window.claude.hot.snapshot(() => ({
+    near: state.near, far: state.far, lit: [...state.lit],
+    nothing: state.nothing, example: state.example, tally: state.tally
+  }));
+}
+if (window.claude && window.claude.hot && window.claude.hot.ready) window.claude.hot.ready(start);
+else start((window.claude && window.claude.hot && window.claude.hot.data) || {});
+</script>
+</body>
+</html>
